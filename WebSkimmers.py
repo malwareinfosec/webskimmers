@@ -29,6 +29,10 @@ import os.path
 import shutil
 from requests import *
 from datetime import datetime
+import yara
+import glob
+import hashlib
+import configparser
 #from slackclient import SlackClient
 
 # authorship information
@@ -69,8 +73,6 @@ __asciiart__ = '''
 
 current_path = os.path.dirname(os.path.realpath(__file__))
 
-# Virus Total Intelligence API
-VTAPI = ""
 number_of_result = ""  # fetch this many notifications per API request. 10 by default, 40 max
 max_notifications = None  # fetch this many notifications in total
 vturl = 'https://www.virustotal.com/api/v3/intelligence/hunting_notifications'
@@ -97,23 +99,13 @@ gmail_dest = ""
 # Slack Bot config
 SLACK_BOT_TOKEN = ""
 SLACK_EMOJI = ":rooster:"
-SLACK_BOT_NAME = "VT Hunting Bot by @fr0gger_"
+SLACK_BOT_NAME = ""
 SLACK_CHANNEL = ""
 
-# Telegram Bot config
-# to get the token just ping @Botfather on telegram and create a new bot /new_bot
-# To get a chat id send a message to your bot and go to https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
-TOKEN = ""
-chat_id = ""
-telurl = "https://api.telegram.org/bot{}/".format(TOKEN)
-
-# Microsoft Teams Bot config
-TEAMS_CHANNEL_WEBHOOK = ""
 # -----------------------------------------------------------------------
 
 # Global Variable
 now = dt.datetime.now()
-headers = {"x-apikey": VTAPI}
 regex = "[A-Fa-f0-9]{64}"  # Detect SHA256
 end_message = "End of report"
 database_connection = sqlite3.connect('skimmers.sqlite')
@@ -121,13 +113,14 @@ database_connection = sqlite3.connect('skimmers.sqlite')
 
 # Print help
 def usage():
-    print("usage: web_skimmers.py [OPTION]")
-    print('''    -h, --help              Print this help
-    -r, --report                 Print the VT hunting report
-    -s, --slack_report           Send the report to a Slack channel
-    -e, --email_report           Send the report by email
-    -t, --twitter_notification   Send a tweet
-    -j, --json                   Print report in json format
+    print("usage: WebSkimmers.py -s [OPTION] -o [OPTION]")
+    print('''   
+    -h, --help                   Print this help
+    -s, --source                 Choose a data source (VT, local)
+    -o, --output                 (Optional) Choose an output format (email, slack, tweet)
+
+Example: WebSkimmers.py -s VT
+Example: WebSkimmers.py -s /home/user/Desktop/files
     ''')
 
 
@@ -227,7 +220,7 @@ def update_skimmers_db(sha256, victim_site, skimmer_gate, rule_name, notificatio
             database_connection.commit()
 
 # Connect to VT
-def api_request():
+def api_request(VTAPI):
     print('Checking with VirusTotal API for new notifications, please wait...')
     fetch_more_notifications = True
     limit = 10
@@ -247,6 +240,8 @@ def api_request():
         'limit': limit,
         'filter': 'Magecart'
     }
+
+    headers = {"x-apikey": VTAPI}
 
     while fetch_more_notifications:
         response = requests.get(vturl, params=params, headers=headers)
@@ -282,7 +277,7 @@ def api_request():
         # Only continue if hash was not seen before
         if not sha256_was_seen_before(sha256):
             # Call function to download file from VT
-            download_file_vt(sha256, data_tmp)
+            download_file_vt(VTAPI, sha256, data_tmp)
             # Call function to search file for a victim
             victim_site = find_victim(sha256, data_tmp)
             # Check if victim_site already exists
@@ -300,12 +295,12 @@ def api_request():
             if (victim_site is not None and not victim_exists) or (skimmer_gate is not None and not gate_exists):
                 new_entry = True
                 report.append("Rule name: " + rule_name)
-                report.append("Match date: " + datetime.utcfromtimestamp(date).strftime('%d/%m/%Y %H:%M:%S'))
+                report.append("Match date: " + datetime.utcfromtimestamp(date).strftime('%m/%d/%Y'))
                 report.append("SHA256: " + str(sha256))
-                if (victim_site is not None and not victim_exists):
+                if (victim_site is not None):
                     report.append("Victim site: " + victim_site.replace(".", "[.]"))
                     victim_site_found_count += 1
-                if (skimmer_gate is not None and not gate_exists):
+                if (skimmer_gate is not None):
                     report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
                     skimmer_gate_found_count += 1
                 report.append("Tags: " + str([str(tags) for tags in tags]).replace("'", ""))
@@ -338,9 +333,70 @@ def api_request():
     
     return report, notifications
 
+table = []
+
+def mycallback(data):
+  #print(data)
+  table.append(data)
+  return yara.CALLBACK_CONTINUE
+
+
+# Local folder
+def local_folder(yara_rules,data_dir):
+    # Scan with YARA rules
+    rules = {}
+    path = yara_rules + "/"
+    for rule in glob.glob(path + '*.yar'):
+        rules[rule] = rule
+
+    rules = yara.compile(filepaths=rules)
+
+    # Start report
+    report = ["-------------------------------------------------------------------------------------"]
+
+    for filename in os.listdir(data_dir):
+        matches = rules.match(data_dir + filename, callback=mycallback, which_callbacks=yara.CALLBACK_MATCHES)
+        with open(data_dir + filename,"rb") as f:
+            bytes = f.read() # read entire file as bytes
+            sha256 = hashlib.sha256(bytes).hexdigest()
+        if matches:
+            # Only continue if hash was not seen before
+            if not sha256_was_seen_before(sha256):
+                # Update match date
+                day = now.strftime("%d")
+                month = now.strftime("%m")
+                year = now.strftime("%Y")
+                date = month + "/" + day + "/" + year
+                # Call function to search file for a victim
+                victim_site = find_victim(filename, data_dir + "/")
+                # Check if victim_site already exists
+                if victim_site is not None:
+                    victim_exists = victim_site_was_seen_before(victim_site)
+                # Call function to search file for a gate
+                skimmer_gate = find_gate(filename, data_dir + "/")
+                # Check if skimmer_gate already exists
+                if skimmer_gate is not None:
+                    gate_exists = skimmer_gate_was_seen_before(skimmer_gate)
+                # Update database
+                update_skimmers_db(sha256, victim_site, skimmer_gate, table[-1]['rule'], int(time.time()))
+                # Only continue if we have either a new victim site or skimmer gate
+                if (victim_site is not None and not victim_exists) or (skimmer_gate is not None and not gate_exists):
+                    report.append("Rule name: " + table[-1]['rule'])
+                    report.append("Match date: " + date)
+                    report.append("SHA256: " + str(sha256))
+                    if (victim_site is not None):
+                        report.append("Victim site: " + victim_site.replace(".", "[.]"))
+                    if (skimmer_gate is not None):
+                        report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
+                    report.append("Tags: " + ", ".join(table[-1]['tags']))
+                    report.append(str(list(table[-1]['strings'])))
+                    report.append("-------------------------------------------------------------------------------------")
+    
+    report = ("\n".join(report))
+    return report
 
 # Download file from VT
-def download_file_vt(sha256, data_tmp):
+def download_file_vt(VTAPI, sha256, data_tmp):
         r = requests.get(vtdownload, params={"apikey": VTAPI, "hash": sha256})
         with open(data_tmp + sha256, "wb") as f:
             f.write(r.content)
@@ -383,12 +439,12 @@ def find_gate(sha256, data_tmp):
                         hex_tmp = hex_tmp.group(1)
                         skimmer_gate = hex_text(hex_tmp)
                         return skimmer_gate
-                if 'String.fromCharCode' in line:
-                    char_code = re.search('fromCharCode\((.*?)\)', line).group(1)
-                    skimmer_gate = ""
-                    for char in char_code.split(","):
-                        skimmer_gate = skimmer_gate + (chr(int(char)))
-                    return skimmer_gate
+                #if 'String.fromCharCode' in line:
+                #    char_code = re.search('fromCharCode\((.*?)\)', line).group(1)
+                #    skimmer_gate = ""
+                #    for char in char_code.split(","):
+                #        skimmer_gate = skimmer_gate + (chr(int(char)))
+                #    return skimmer_gate
     except Exception as e:
         with open(missing_log_file, 'a') as f:
             f.write("[!] Error with finding skimmer_gate with: " + sha256 + " : " + str(e))
@@ -399,47 +455,65 @@ def hex_text(hex_tmp):
     txt_tmp = bytes.fromhex(hex_tmp).decode('utf-8')
     return txt_tmp
 
-def main():
+def main(argv):
     print(__asciiart__)
     print("\t         " + __team__ + " | " + __author__ + "\n")
 
+    # Read config file
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hrsetmj",
-                                   ["help", "report", "slack_report", "email_report", "twitter_report", "json"])
+        config = configparser.ConfigParser()
+        config.read("config.ini")
+        VTAPI = config.get("VirusTotal", "api_key")
+        yara_rules= config.get("YARA", "yara_rules")
+    except Exception as e:
+        print("[!] Unable to read the config.ini file: {}".format(str(e)))
+
+    try:
+      opts, args = getopt.getopt(argv,"hs:o:",["source=","output="])
     except getopt.GetoptError as err:
         print(err)
         usage()
         sys.exit(2)
 
-    initialize_skimmers_database()
-
-    try:
-        report, result_json = api_request()
-    except(ConnectionError, ConnectTimeout, KeyError) as e:
-        print("[!] Error with the VT API: " + str(e))
-        sys.exit()
-
-    # Log report to disk
-    with open(report_log_file, 'a') as f:
-        f.write(report)
-
-    for o, a in opts:
-        if o in ("-h", "--help"):
+    for opt, arg in opts:
+        if opt in ("-h", "--help"):
             usage()
             sys.exit()
-        elif o in ("-r", "--report"):
-            print(report)
-        elif o in ("-t", "--twitter_report"):
-            send_twitter_notification(report)
-        elif o in ("-s", "--slack_report"):
-            send_slack_report(report)
-        elif o in ("-e", "--email_report"):
-            send_email_report(report)
-        elif o in ("-j", "--json"):
-            print(json.dumps(result_json, sort_keys=True, indent=4))
+        elif opt in ("-s", "--source"):
+            if arg == "VT":
+                # VirusTotal as source
+                initialize_skimmers_database()
+                try:
+                    report, result_json = api_request(VTAPI)
+                    if len(sys.argv) > 3:
+                        output = (sys.argv[4])
+                    else:
+                        output = "console"
+                except(ConnectionError, ConnectTimeout, KeyError) as e:
+                    print("[!] Error with the VT API: " + str(e))
+                    sys.exit()
+                database_connection.close()
+            elif os.path.isdir(arg):
+                # Local folder as source
+                initialize_skimmers_database()
+                try:
+                    data_dir = (arg) + "/"
+                    report = local_folder(yara_rules, data_dir)
+                    if len(sys.argv) > 3:
+                        output = (sys.argv[4])
+                    else:
+                        output = "console"
+                except Exception as e:
+                    print("[!] Error with local folder: " + str(e))
+                    sys.exit()
+                database_connection.close()
+            else:
+                usage()
+                sys.exit()
 
-    database_connection.close()
+    if output == "console":
+        print(report)
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])
