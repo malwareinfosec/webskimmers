@@ -407,8 +407,8 @@ def find_victim(sha256, data_tmp):
     try:
         with open(data_tmp + sha256, 'r', errors='replace') as f:
             for line in f.readlines():
-                if ('rel="shortcut icon' in line) and (line.find('http') != -1):
-                    victim_site = re.sub('/.*', '', re.sub('^.*?(\'|")https?://(www.)?', '', line)).strip('\n')
+                if ('link rel="shortcut icon' in line) and (line.find('http') != -1):
+                    victim_site = re.sub('/.*', '',re.sub('^.*shortcut icon.*?href="https?://(www.)?', '', line)).strip('\n')
                     return victim_site
                 elif ('var BLANK_URL = ' in line) and (line.find('http') != -1):
                     victim_site = re.sub('/.*', '', re.sub('^.*?(\'|")https?://(www.)?', '', line)).strip('\n')
@@ -417,6 +417,9 @@ def find_victim(sha256, data_tmp):
                     victim_site = re.sub('/.*', '', re.sub('^.*?(\'|")https?://(www.)?', '', line)).strip('\n')
                     return victim_site
                 elif ('<link rel="pingback"' in line) and (line.find('http') != -1):
+                    victim_site = re.sub('/.*', '', re.sub('^.*?(\'|")https?://(www.)?', '', line)).strip('\n')
+                    return victim_site
+                elif ('"baseUrl": "' in line) and (line.find('http') != -1):
                     victim_site = re.sub('/.*', '', re.sub('^.*?(\'|")https?://(www.)?', '', line)).strip('\n')
                     return victim_site
     except Exception as e:
