@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Web Skimmer Notification version 1.0
-This tiny Python script allows you to setup daily report about web skimmer hunting notification.
-You can send the report by email, to telegram or slack and export the result in JSON.
+https://github.com/malwareinfosec/webskimmers
 
 Code development started with forking the following repository:
 https://github.com/fr0gger/vthunting
@@ -36,34 +35,34 @@ import configparser
 #from slackclient import SlackClient
 
 # authorship information
-__author__ = "JS"
+__author__ = "@malwareinfosec"
 __team__ = "WebSkimmer hunting tool"
 __version__ = "1.0"
-__maintainer__ = "JS"
+__maintainer__ = "@malwareinfosec"
 __status__ = "Release 1.0"
 __asciiart__ = '''
-                              `.-/+o/`            
-                       `-:+oyhbbbbbbbh`           
-              ``.:/osybbbbbbbbbbbhyso/.           
-      ``.-/+syhbbbbbbbbbbhhyo+:-.                 
- .:+oshbbbbbbbbbbhhys+/-.`        ```-:/          
--bbbbbbbbhhyso/:-`         ``.:/+syhbbbb-         
--hhhso+:-.`        ``.-/+osybbbbbbbbbbbby         
- .`        ``.-:/osyhbbbbbbbbbbbbbbbbbbbb:        
-    `..:/+syyyhhhhhhhhhhhhhhhhhhhhhhhhhhhs        
-  :yyhbbbbo:   
-  `hbbbbbo   1ybbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-   +bbbbb/  1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb!
-   `hbbbb/  1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb!
-    :bbbb/  1bbb_|_|_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb!
-     ybbb/  1bbb_|_|_bbbbbbbbbbbbbbbbbbbbbbbbbbbybb!
-     -ybb/  1bbb | | bbbbbbbbbbbbbbbbbbbbbbbbbbbybb!
-      `..`  1bbbbbbbbbbbbbbbbbbbbbbbbbbobbbbbbbbbbb!
-            1bb 4111 bbb 1111 bbb 1111 bbb 1111 bbb!
-            1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb!
-            1bbhbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb!
-            1bbhbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb!
-             1bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+                                          `.-/+o/`            
+                                   `-:+oyhbbbbbbbh`           
+                          ``.:/osybbbbbbbbbbbhyso/.           
+                  ``.-/+syhbbbbbbbbbbhhyo+:-.                 
+             .:+oshbbbbbbbbbbhhys+/-.`        ```-:/          
+            -bbbbbbbbhhyso/:-`         ``.:/+syhbbbb-         
+            -hhhso+:-.`        ``.-/+osybbbbbbbbbbbby         
+             .`        ``.-:/osyhbbbbbbbbbbbbbbbbbbbb:        
+                `..:/+syyyhhhhhhhhhhhhhhhhhhhhhhhhhhhs        
+              :yyhbbbbo:   
+              `hbbbbbo   !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+               +bbbbb/  !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+               `hbbbb/  !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+                :bbbb/  !$$$_|_|_$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+                 ybbb/  !$$$_|_|_$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+                 -ybb/  !$$$ | | $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+                  `..`  !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+                        !$$ 4111 $$$ 1111 $$$ 1111 $$$ 1111 $$$!
+                        !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+                        !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+                        !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
+                         !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$!
 
         '''
 # -----------------------------------------------------------------------
@@ -271,6 +270,7 @@ def api_request(VTAPI):
         rule_name = json_row["attributes"]["rule_name"]
         date = json_row["attributes"]["date"]
         tags = json_row["attributes"]["tags"]
+        snippet = json_row["attributes"]["snippet"]
         sha256 = re.search(regex, str(tags)).group()
         tags.remove(sha256)
 
@@ -297,13 +297,14 @@ def api_request(VTAPI):
                 report.append("Rule name: " + rule_name)
                 report.append("Match date: " + datetime.utcfromtimestamp(date).strftime('%m/%d/%Y'))
                 report.append("SHA256: " + str(sha256))
-                if (victim_site is not None):
+                if (victim_site is not None and not victim_exists):
                     report.append("Victim site: " + victim_site.replace(".", "[.]"))
                     victim_site_found_count += 1
-                if (skimmer_gate is not None):
+                if (skimmer_gate is not None and not gate_exists):
                     report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
                     skimmer_gate_found_count += 1
                 report.append("Tags: " + str([str(tags) for tags in tags]).replace("'", ""))
+                report.append("Snippet: " + snippet)
                 report.append("-------------------------------------------------------------------------------------")
             else:
                 with open(missing_log_file, 'a') as f:
@@ -384,14 +385,17 @@ def local_folder(yara_rules,data_dir):
                     report.append("Rule name: " + table[-1]['rule'])
                     report.append("Match date: " + date)
                     report.append("SHA256: " + str(sha256))
-                    if (victim_site is not None):
+                    if (victim_site is not None and not victim_exists):
                         report.append("Victim site: " + victim_site.replace(".", "[.]"))
-                    if (skimmer_gate is not None):
+                    if (skimmer_gate is not None and not gate_exists):
                         report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
                     report.append("Tags: " + ", ".join(table[-1]['tags']))
                     report.append(str(list(table[-1]['strings'])))
                     report.append("-------------------------------------------------------------------------------------")
-    
+            # Move file
+            if os.path.isfile(data_dir + sha256):
+                shutil.move(data_dir + sha256, data_archive + sha256)
+
     report = ("\n".join(report))
     return report
 
