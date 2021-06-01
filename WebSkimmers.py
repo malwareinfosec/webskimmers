@@ -27,7 +27,7 @@ import os
 import os.path
 import shutil
 from requests import *
-from datetime import datetime
+from datetime import datetime, timedelta
 import yara
 import glob
 import hashlib
@@ -218,8 +218,82 @@ def update_skimmers_db(sha256, victim_site, skimmer_gate, rule_name, notificatio
         finally:
             database_connection.commit()
 
-# Connect to VT
-def api_request(VTAPI):
+
+# VT search (detected by AVs)
+def vt_intelligence(VT_key):
+    
+    if VT_key is None:
+        raise Exception("You must provide a valid VT API key")
+
+    notifications = []
+    delta = datetime.now() - timedelta(days=1)
+    first_seen = 'fs:{}+'.format(delta.strftime("%Y-%m-%dT%H:%M:%S"))
+    query = '(engines:"Magecart" OR engines:"Skimmer" OR engines:"CardStealer" OR engines:"MagentoStealer") AND (type:internet OR type:javascript) AND ' + first_seen
+    limit = '100'
+    params = {'query': query, 'limit': limit}
+    response = requests.get('https://www.virustotal.com/api/v3/intelligence/search',
+                                params=params,
+                                headers={'x-apikey': VT_key,
+                                         'Accept': 'application/json'})
+    result = json.loads(response.text)
+
+    for json_row in result['data']:
+        notifications.append(json_row)
+
+    # Start report
+    report = [""]
+    # Update match date
+    day = now.strftime("%d")
+    month = now.strftime("%m")
+    year = now.strftime("%Y")
+    date = month + "/" + day + "/" + year
+
+    for json_row in notifications:
+        sha256 = json_row["attributes"]["sha256"]
+        malicious = json_row["attributes"]["last_analysis_stats"]["malicious"]
+        undetected = json_row["attributes"]["last_analysis_stats"]["undetected"]
+        total_engines = malicious + undetected
+        if not sha256_was_seen_before(sha256):
+            # Download file to disk
+            download_file_vt(VT_key, sha256, data_tmp)
+            # Call function to search file for a victim
+            victim_site = find_victim(sha256, data_tmp + "/")
+            # Check if victim_site already exists
+            if victim_site is not None:
+                victim_exists = victim_site_was_seen_before(victim_site)
+            # Call function to search file for a gate
+            skimmer_gate = find_gate(sha256, data_tmp + "/")
+            # Check if skimmer_gate already exists
+            if skimmer_gate is not None:
+                gate_exists = skimmer_gate_was_seen_before(skimmer_gate)
+            # Update database
+            update_skimmers_db(sha256, victim_site, skimmer_gate, 'VT search', int(time.time()))
+            
+            # Only continue if we have either a new victim site or skimmer gate
+            if (victim_site is not None and not victim_exists) or (skimmer_gate is not None and not gate_exists):
+                report.append("Rule name: " + "VT (" + str(malicious) + "/" + str(total_engines) + ")")
+                report.append("Match date: " + date)
+                report.append("SHA256: " + str(sha256))
+                if (victim_site is not None and not victim_exists):
+                    report.append("Victim site: " + victim_site.replace(".", "[.]"))
+                if (skimmer_gate is not None and not gate_exists):
+                    report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
+                    #report.append("Tags: " + ", ".join(table[-1]['tags']))
+                    #report.append(str(list(table[-1]['strings'])))
+                report.append("-------------------------------------------------------------------------------------")
+                # Move file
+                if os.path.isfile(data_tmp + sha256):
+                    shutil.move(data_tmp + sha256, data_archive + sha256)
+
+    report = ("\n".join(report))
+    return report
+
+
+# VT live hunt notifications (detected by YARA rules)
+def api_request(VT_key):
+    if VT_key is None:
+        raise Exception("You must provide a valid VT API key")
+    
     print('Checking with VirusTotal API for new notifications, please wait...')
     fetch_more_notifications = True
     limit = 10
@@ -240,7 +314,7 @@ def api_request(VTAPI):
         'filter': 'Magecart'
     }
 
-    headers = {"x-apikey": VTAPI}
+    headers = {"x-apikey": VT_key}
 
     while fetch_more_notifications:
         response = requests.get(vturl, params=params, headers=headers)
@@ -277,7 +351,7 @@ def api_request(VTAPI):
         # Only continue if hash was not seen before
         if not sha256_was_seen_before(sha256):
             # Call function to download file from VT
-            download_file_vt(VTAPI, sha256, data_tmp)
+            download_file_vt(VT_key, sha256, data_tmp)
             # Call function to search file for a victim
             victim_site = find_victim(sha256, data_tmp)
             # Check if victim_site already exists
@@ -303,8 +377,8 @@ def api_request(VTAPI):
                 if (skimmer_gate is not None and not gate_exists):
                     report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
                     skimmer_gate_found_count += 1
-                report.append("Tags: " + str([str(tags) for tags in tags]).replace("'", ""))
-                report.append("Snippet: " + snippet)
+                #report.append("Tags: " + str([str(tags) for tags in tags]).replace("'", ""))
+                #report.append("Snippet: " + snippet)
                 report.append("-------------------------------------------------------------------------------------")
             else:
                 with open(missing_log_file, 'a') as f:
@@ -319,15 +393,15 @@ def api_request(VTAPI):
         if os.path.isfile(data_tmp + sha256):
             shutil.move(data_tmp + sha256, data_archive + sha256)
 
-    if new_entry:
-        report.append("\nSTATS:")
-        report.append("Victim sites found: " + str(victim_site_found_count))
-        report.append("Victim sites missed: " + str(victim_site_missed_count))
-        report.append("Skimmer gates found: " + str(skimmer_gate_found_count))
-        report.append("Skimmer gates missed: " + str(skimmer_gate_missed_count) + "\n")
+    #if new_entry:
+    #    report.append("\nSTATS:")
+    #    report.append("Victim sites found: " + str(victim_site_found_count))
+    #    report.append("Victim sites missed: " + str(victim_site_missed_count))
+    #    report.append("Skimmer gates found: " + str(skimmer_gate_found_count))
+    #    report.append("Skimmer gates missed: " + str(skimmer_gate_missed_count) + "\n")
     
-    if not new_entry:
-        print("No new entry!")    
+    #if not new_entry:
+    #    print("No new entry!")    
     
     #report.append(end_message)
     report = ("\n".join(report))
@@ -355,6 +429,12 @@ def local_folder(yara_rules,data_dir):
     # Start report
     report = ["-------------------------------------------------------------------------------------"]
 
+    # Update match date
+    day = now.strftime("%d")
+    month = now.strftime("%m")
+    year = now.strftime("%Y")
+    date = month + "/" + day + "/" + year
+
     for filename in os.listdir(data_dir):
         matches = rules.match(data_dir + filename, callback=mycallback, which_callbacks=yara.CALLBACK_MATCHES)
         with open(data_dir + filename,"rb") as f:
@@ -363,11 +443,6 @@ def local_folder(yara_rules,data_dir):
         if matches:
             # Only continue if hash was not seen before
             if not sha256_was_seen_before(sha256):
-                # Update match date
-                day = now.strftime("%d")
-                month = now.strftime("%m")
-                year = now.strftime("%Y")
-                date = month + "/" + day + "/" + year
                 # Call function to search file for a victim
                 victim_site = find_victim(filename, data_dir + "/")
                 # Check if victim_site already exists
@@ -400,8 +475,8 @@ def local_folder(yara_rules,data_dir):
     return report
 
 # Download file from VT
-def download_file_vt(VTAPI, sha256, data_tmp):
-        r = requests.get(vtdownload, params={"apikey": VTAPI, "hash": sha256})
+def download_file_vt(VT_key, sha256, data_tmp):
+        r = requests.get(vtdownload, params={"apikey": VT_key, "hash": sha256})
         with open(data_tmp + sha256, "wb") as f:
             f.write(r.content)
 
@@ -470,7 +545,7 @@ def main(argv):
     try:
         config = configparser.ConfigParser()
         config.read("config.ini")
-        VTAPI = config.get("VirusTotal", "api_key")
+        VT_key = config.get("VirusTotal", "api_key")
         yara_rules= config.get("YARA", "yara_rules")
     except Exception as e:
         print("[!] Unable to read the config.ini file: {}".format(str(e)))
@@ -491,7 +566,21 @@ def main(argv):
                 # VirusTotal as source
                 initialize_skimmers_database()
                 try:
-                    report, result_json = api_request(VTAPI)
+                    report, result_json = api_request(VT_key)
+                    VT_search_report = vt_intelligence(VT_key)
+                    if len(sys.argv) > 3:
+                        output = (sys.argv[4])
+                    else:
+                        output = "console"
+                except(ConnectionError, ConnectTimeout, KeyError) as e:
+                    print("[!] Error with the VT API: " + str(e))
+                    sys.exit()
+                database_connection.close()
+            elif arg == "intel":
+                # Local folder as source
+                initialize_skimmers_database()
+                try:
+                    report = vt_intelligence(VT_key)
                     if len(sys.argv) > 3:
                         output = (sys.argv[4])
                     else:
@@ -519,7 +608,7 @@ def main(argv):
                 sys.exit()
 
     if output == "console":
-        print(report)
+        print(report + VT_search_report)
 
 
 if __name__ == '__main__':
