@@ -294,7 +294,7 @@ def api_request(VT_key):
     if VT_key is None:
         raise Exception("You must provide a valid VT API key")
     
-    print('Checking with VirusTotal API for new notifications, please wait...')
+    print('Checking VirusTotal Livehunt API for new notifications, please wait...')
     fetch_more_notifications = True
     limit = 10
     notifications = []
@@ -350,6 +350,7 @@ def api_request(VT_key):
 
         # Only continue if hash was not seen before
         if not sha256_was_seen_before(sha256):
+            new_entry = True
             # Call function to download file from VT
             download_file_vt(VT_key, sha256, data_tmp)
             # Call function to search file for a victim
@@ -365,43 +366,46 @@ def api_request(VT_key):
             # Update database
             update_skimmers_db(sha256, victim_site, skimmer_gate, rule_name, date)
             
-            # Only continue if we have either a new victim site or skimmer gate
-            if (victim_site is not None and not victim_exists) or (skimmer_gate is not None and not gate_exists):
-                new_entry = True
-                report.append("Rule name: " + rule_name)
-                report.append("Match date: " + datetime.utcfromtimestamp(date).strftime('%m/%d/%Y'))
-                report.append("SHA256: " + str(sha256))
-                if (victim_site is not None and not victim_exists):
-                    report.append("Victim site: " + victim_site.replace(".", "[.]"))
-                    victim_site_found_count += 1
-                if (skimmer_gate is not None and not gate_exists):
-                    report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
-                    skimmer_gate_found_count += 1
-                #report.append("Tags: " + str([str(tags) for tags in tags]).replace("'", ""))
-                #report.append("Snippet: " + snippet)
-                report.append("-------------------------------------------------------------------------------------")
+            # Add results
+            report.append("Rule name: " + rule_name)
+            report.append("Match date: " + datetime.utcfromtimestamp(date).strftime('%m/%d/%Y'))
+            report.append("SHA256: " + str(sha256))
+            if victim_site is not None:
+                report.append("Victim site: " + victim_site.replace(".", "[.]"))
+                victim_site_found_count += 1
+                if not victim_exists:
+                    report.append("New victim site: " + "Yes")
+                else:
+                    report.append("New victim site: " + "No")
             else:
-                with open(missing_log_file, 'a') as f:
-                    if victim_site is None:
-                        f.write(sha256 + " no victim site found\n")
-                        victim_site_missed_count += 1
-                    if skimmer_gate is None:
-                        f.write(sha256 + " no skimmer gate found\n")
-                        skimmer_gate_missed_count += 1
+                victim_site_missed_count += 1
+
+            if skimmer_gate is not None:
+                report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
+                skimmer_gate_found_count += 1
+                if not gate_exists:
+                    report.append("New skimmer gate: " + "Yes")
+                else:
+                    report.append("New skimmer gate: " + "No")
+            else:
+                skimmer_gate_missed_count += 1
+            #report.append("Tags: " + str([str(tags) for tags in tags]).replace("'", ""))
+            #report.append("Snippet: " + snippet)
+            report.append("-------------------------------------------------------------------------------------")
 
         # Move file
         if os.path.isfile(data_tmp + sha256):
             shutil.move(data_tmp + sha256, data_archive + sha256)
 
-    #if new_entry:
-    #    report.append("\nSTATS:")
-    #    report.append("Victim sites found: " + str(victim_site_found_count))
-    #    report.append("Victim sites missed: " + str(victim_site_missed_count))
-    #    report.append("Skimmer gates found: " + str(skimmer_gate_found_count))
-    #    report.append("Skimmer gates missed: " + str(skimmer_gate_missed_count) + "\n")
+    if new_entry:
+        report.append("\nSTATS:")
+        report.append("Victim sites found: " + str(victim_site_found_count))
+        report.append("Victim sites missed: " + str(victim_site_missed_count))
+        report.append("Skimmer gates found: " + str(skimmer_gate_found_count))
+        report.append("Skimmer gates missed: " + str(skimmer_gate_missed_count) + "\n")
     
-    #if not new_entry:
-    #    print("No new entry!")    
+    if not new_entry:
+        print("No new entry!")    
     
     #report.append(end_message)
     report = ("\n".join(report))
@@ -455,18 +459,26 @@ def local_folder(yara_rules,data_dir):
                     gate_exists = skimmer_gate_was_seen_before(skimmer_gate)
                 # Update database
                 update_skimmers_db(sha256, victim_site, skimmer_gate, table[-1]['rule'], int(time.time()))
-                # Only continue if we have either a new victim site or skimmer gate
-                if (victim_site is not None and not victim_exists) or (skimmer_gate is not None and not gate_exists):
-                    report.append("Rule name: " + table[-1]['rule'])
-                    report.append("Match date: " + date)
-                    report.append("SHA256: " + str(sha256))
-                    if (victim_site is not None and not victim_exists):
-                        report.append("Victim site: " + victim_site.replace(".", "[.]"))
-                    if (skimmer_gate is not None and not gate_exists):
-                        report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
-                    report.append("Tags: " + ", ".join(table[-1]['tags']))
-                    report.append(str(list(table[-1]['strings'])))
-                    report.append("-------------------------------------------------------------------------------------")
+
+                report.append("Rule name: " + table[-1]['rule'])
+                report.append("Match date: " + date)
+                report.append("SHA256: " + str(sha256))
+                if victim_site is not None:
+                    report.append("Victim site: " + victim_site.replace(".", "[.]"))
+                    if not victim_exists:
+                        report.append("New victim site: " + "Yes")
+                    else:
+                        report.append("New victim site: " + "No")
+                if skimmer_gate is not None:
+                    report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
+                    if not gate_exists:
+                        report.append("New skimmer gate: " + "Yes")
+                    else:
+                        report.append("New skimmer gate: " + "No")
+                    print('3')
+                report.append("Tags: " + ", ".join(table[-1]['tags']))
+                report.append(str(list(table[-1]['strings'])))
+                report.append("-------------------------------------------------------------------------------------")
             # Move file
             if os.path.isfile(data_dir + sha256):
                 shutil.move(data_dir + sha256, data_archive + sha256)
@@ -521,12 +533,6 @@ def find_gate(sha256, data_tmp):
                         hex_tmp = hex_tmp.group(1)
                         skimmer_gate = hex_text(hex_tmp)
                         return skimmer_gate
-                #if 'String.fromCharCode' in line:
-                #    char_code = re.search('fromCharCode\((.*?)\)', line).group(1)
-                #    skimmer_gate = ""
-                #    for char in char_code.split(","):
-                #        skimmer_gate = skimmer_gate + (chr(int(char)))
-                #    return skimmer_gate
     except Exception as e:
         with open(missing_log_file, 'a') as f:
             f.write("[!] Error with finding skimmer_gate with: " + sha256 + " : " + str(e))
@@ -562,12 +568,11 @@ def main(argv):
             usage()
             sys.exit()
         elif opt in ("-s", "--source"):
-            if arg == "VT":
+            if arg == "livehunt":
                 # VirusTotal as source
                 initialize_skimmers_database()
                 try:
                     report, result_json = api_request(VT_key)
-                    VT_search_report = vt_intelligence(VT_key)
                     if len(sys.argv) > 3:
                         output = (sys.argv[4])
                     else:
@@ -576,7 +581,7 @@ def main(argv):
                     print("[!] Error with the VT API: " + str(e))
                     sys.exit()
                 database_connection.close()
-            elif arg == "intel":
+            elif arg == "search":
                 # Local folder as source
                 initialize_skimmers_database()
                 try:
@@ -608,7 +613,7 @@ def main(argv):
                 sys.exit()
 
     if output == "console":
-        print(report + VT_search_report)
+        print(report)
 
 
 if __name__ == '__main__':
