@@ -35,10 +35,10 @@ import configparser
 #from slackclient import SlackClient
 
 # authorship information
-__author__ = "@malwareinfosec"
+__author__ = "Jérôme Segura"
 __team__ = "WebSkimmer hunting tool"
 __version__ = "1.0"
-__maintainer__ = "@malwareinfosec"
+__maintainer__ = "@jeromesegura"
 __status__ = "Release 1.0"
 __asciiart__ = '''
                                           `.-/+o/`            
