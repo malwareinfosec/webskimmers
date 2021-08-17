@@ -10,4 +10,4 @@ Example: Query your VirusTotal livehunt notifications (requires VT subscription)
 
 Example: Check local HTML, JS files saved to your disk
 
-```webSkimmers.py -s /home/user/Desktop/files```
+```webskimmers.py -s /home/user/Desktop/files```
