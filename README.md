@@ -1,3 +1,17 @@
+
+
+The `config.ini` file should be located in the same directory as the main Python script.
+It contains your VirusTotal API key and the path to your YARA rules
+
+[VirusTotal]
+api_key=[keyhere]
+
+[YARA]
+yara_rules=[yourpathtolocalyararules]
+
+The local path to your YARA rules is only needed if you are going to run YARA on files you have downloaded locally (instead of using VT hunting).
+
+##
 Usage:
     ```webskimmers.py -s [OPTION]```
 
