@@ -1,3 +1,9 @@
+## VirusTotal Lihunt
+
+These are your YARA rules. You can use the VT interface to view results and download matches. But perhaps you wish you could automate some of this stuff a little bit?
+
+![image](https://user-images.githubusercontent.com/25351665/130902422-0c13d200-bc82-4764-8e54-7fff9db71556.png)
+
 ## Features
 
 * Query VirusTotal Livehunt notifications
@@ -6,8 +12,6 @@
 * Extract the victim site (if applicable)
 * Extract the skimmer gate (if possible)
 * Store the matched file’s SHA256, matching rule, victim site and gate into a local database
-
-![image](https://user-images.githubusercontent.com/25351665/130902422-0c13d200-bc82-4764-8e54-7fff9db71556.png)
 
 ![image](https://user-images.githubusercontent.com/25351665/130902474-a53d28e5-d634-4e87-81b4-bfa2380e9243.png)
 
