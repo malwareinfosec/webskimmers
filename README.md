@@ -1,4 +1,4 @@
-## VirusTotal Lihunt
+## VirusTotal Livehunt
 
 These are your YARA rules. You can use the VT interface to view results and download matches. But perhaps you wish you could automate some of this stuff a little bit?
 
