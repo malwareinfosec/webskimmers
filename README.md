@@ -1,4 +1,13 @@
+## Features
 
+* Query VirusTotal Livehunt notifications
+* Download matches locally
+* Display which YARA rule matched
+* Extract the victim site (if applicable)
+* Extract the skimmer gate (if possible)
+* Store the matched file’s SHA256, matching rule, victim site and gate into a local database
+
+## Initial setup
 
 The `config.ini` file should be located in the same directory as the main Python script.
 It contains your VirusTotal API key and the path to your YARA rules
@@ -11,8 +20,8 @@ yara_rules=[yourpathtolocalyararules]
 
 The local path to your YARA rules is only needed if you are going to run YARA on files you have downloaded locally (instead of using VT hunting).
 
-##
-Usage:
+## Usage
+
     ```webskimmers.py -s [OPTION]```
 
     -h, --help                  Print this help
