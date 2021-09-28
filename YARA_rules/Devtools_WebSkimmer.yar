@@ -1,8 +1,9 @@
 rule Devtools_WebSkimmer : Magecart WebSkimmer Devtools
 {
     meta:
-        author = "@malwareinfosec"
+        author = "Jérôme Segura"
         description = "Magecart (Devtools)"
+		source = "https://github.com/malwareinfosec/webskimmers/"
         reference = ""
         date = "2021-09-25"
         

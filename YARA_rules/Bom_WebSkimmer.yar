@@ -1,8 +1,9 @@
 rule Bom_WebSkimmer : Magecart WebSkimmer Bom
 {
     meta:
-        author = "@malwareinfosec"
+        author = "Jérôme Segura"
         description = "Magecart (Bom)"
+		source = "https://github.com/malwareinfosec/webskimmers/"
         reference = "https://community.riskiq.com/article/743ea75b"
         date = "2021-09-25"
         

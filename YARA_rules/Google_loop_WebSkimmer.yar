@@ -1,8 +1,9 @@
 rule Google_loop_WebSkimmer : Magecart WebSkimmer Google_loop
 {
     meta:
-        author = "@malwareinfosec"
+        author = "Jérôme Segura"
         description = "Magecart (Google loop)"
+		source = "https://github.com/malwareinfosec/webskimmers/"
         reference = "https://twitter.com/AffableKraut/status/1261157021027622912?s=20"
         date = "2021-09-25"
         
