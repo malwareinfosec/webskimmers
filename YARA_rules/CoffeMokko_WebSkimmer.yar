@@ -8,8 +8,11 @@ rule CoffeMokko_WebSkimmer : Magecart WebSkimmer CoffeMokko
         date = "2021-09-25"
         
     strings:
-        $regex = /\w\[\w\]=\s\w\[\w\];\w\[\w\]=\s\w;\w=\s\(\w\+\s\w\)%\s\d{7}/
+        $string = "/a/g,_$_"
+		$string2 = "/h/g,_$_"
+		$string3 = "/e/g,_$_"
+		$string4 = "/0/g,_$_"
     
     condition:
-        $regex
+        all of them
 }
