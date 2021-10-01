@@ -3,7 +3,7 @@ rule CoffeMokko_WebSkimmer : Magecart WebSkimmer CoffeMokko
     meta:
         author = "Jérôme Segura"
         description = "Magecart (CoffeMokko)"
-		source = "https://github.com/malwareinfosec/webskimmers/"
+        source = "https://github.com/malwareinfosec/webskimmers/"
         reference = "https://blog.group-ib.com/coffemokko"
         date = "2021-09-25"
         
