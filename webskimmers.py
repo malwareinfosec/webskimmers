@@ -35,10 +35,9 @@ import configparser
 #from slackclient import SlackClient
 
 # authorship information
-__author__ = "Jérôme Segura"
-__team__ = "WebSkimmer hunting tool"
+__author__ = "JS"
+__team__ = "Magecart hunting tool"
 __version__ = "1.0"
-__maintainer__ = "@jeromesegura"
 __status__ = "Release 1.0"
 __asciiart__ = '''
                                           `.-/+o/`            
@@ -112,15 +111,26 @@ database_connection = sqlite3.connect('skimmers.sqlite')
 
 # Print help
 def usage():
-    print("usage: WebSkimmers.py -s [OPTION] -o [OPTION]")
+    print("usage: webskimmers.py -s [OPTION]")
     print('''   
     -h, --help                   Print this help
-    -s, --source                 Choose a data source (VT, local)
-    -o, --output                 (Optional) Choose an output format (email, slack, tweet)
+    -s, --source                 Choose a data source (livehunt, local path)
 
-Example: WebSkimmers.py -s VT
-Example: WebSkimmers.py -s /home/user/Desktop/files
+Example: Query your VirusTotal livehunt notifications (requires VT subscription)
+ webskimmers.py -s livehunt
+
+Example: Check local HTML, JS files saved to your disk
+ webskimmers.py -s /home/user/Desktop/files
     ''')
+
+# Directory structure
+def create_dirs(data_tmp, data_archive):
+    directories = [data_tmp, data_archive]
+    for directory in directories:
+        try:
+            os.mkdir(directory)
+        except OSError:
+            print ("Creation of the directory " + directory + " failed")
 
 
 # Twitter
@@ -366,32 +376,33 @@ def api_request(VT_key):
             # Update database
             update_skimmers_db(sha256, victim_site, skimmer_gate, rule_name, date)
             
-            # Add results
-            report.append("Rule name: " + rule_name)
-            report.append("Match date: " + datetime.utcfromtimestamp(date).strftime('%m/%d/%Y'))
-            report.append("SHA256: " + str(sha256))
-            if victim_site is not None:
-                report.append("Victim site: " + victim_site.replace(".", "[.]"))
-                victim_site_found_count += 1
-                if not victim_exists:
-                    report.append("New victim site: " + "Yes")
+            # Show results only if victim site or gate do not already exist
+            if (victim_site is not None and not victim_exists) or (skimmer_gate is not None and not gate_exists):
+                report.append("Rule name: " + rule_name)
+                report.append("Match date: " + datetime.utcfromtimestamp(date).strftime('%m/%d/%Y'))
+                report.append("SHA256: " + str(sha256))
+                if victim_site is not None:
+                    report.append("Victim site: " + victim_site.replace(".", "[.]"))
+                    victim_site_found_count += 1
+                    if not victim_exists:
+                        report.append("New victim site: " + "Yes")
+                    else:
+                        report.append("New victim site: " + "No")
                 else:
-                    report.append("New victim site: " + "No")
-            else:
-                victim_site_missed_count += 1
+                    victim_site_missed_count += 1
 
-            if skimmer_gate is not None:
-                report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
-                skimmer_gate_found_count += 1
-                if not gate_exists:
-                    report.append("New skimmer gate: " + "Yes")
+                if skimmer_gate is not None:
+                    report.append("Skimmer gate: " + skimmer_gate.replace(".", "[.]"))
+                    skimmer_gate_found_count += 1
+                    if not gate_exists:
+                        report.append("New skimmer gate: " + "Yes")
+                    else:
+                        report.append("New skimmer gate: " + "No")
                 else:
-                    report.append("New skimmer gate: " + "No")
-            else:
-                skimmer_gate_missed_count += 1
-            #report.append("Tags: " + str([str(tags) for tags in tags]).replace("'", ""))
-            #report.append("Snippet: " + snippet)
-            report.append("-------------------------------------------------------------------------------------")
+                    skimmer_gate_missed_count += 1
+                #report.append("Tags: " + str([str(tags) for tags in tags]).replace("'", ""))
+                #report.append("Snippet: " + snippet)
+                report.append("-------------------------------------------------------------------------------------")
 
         # Move file
         if os.path.isfile(data_tmp + sha256):
@@ -546,7 +557,9 @@ def hex_text(hex_tmp):
 def main(argv):
     print(__asciiart__)
     print("\t         " + __team__ + " | " + __author__ + "\n")
-
+    # Create directories
+    if not os.path.isdir(data_tmp):
+        create_dirs(data_tmp, data_archive)
     # Read config file
     try:
         config = configparser.ConfigParser()
@@ -611,9 +624,6 @@ def main(argv):
             else:
                 usage()
                 sys.exit()
-
-    if output == "console":
-        print(report)
 
 
 if __name__ == '__main__':
