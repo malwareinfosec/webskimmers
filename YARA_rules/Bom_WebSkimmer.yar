@@ -12,6 +12,7 @@ rule Bom_WebSkimmer : Magecart WebSkimmer Bom
         $regex2 = /;urll=\s_0x/
         $regex3 = /\];function\sboms\(\)/
         $regex4 = /stats:btoa\(_0x/
+		$regex5 = /\]\](\(|=\s)_0x\w{1,8}(\[\d{1,2}\]|\))\}\}\}setInterval\(/
     
     condition:
         any of them
