@@ -9,7 +9,9 @@ rule Q_logger_WebSkimmer : Magecart WebSkimmer Q_logger
         
     strings:
         $regex = /var\s\w=\{isOpen:!1,orientation:void\s0,detectInterval:null\}/
+		$regex2 = /window\.addEventListener\("load",function\(\)\{\(function\(\)/
+		$regex3 = /\]&&clearInterval\(\w\[\w{1,2}\([\w',\(\)\+\[\];\s\{\}\-!&\$\#\"]{10,200}/
     
     condition:
-        $regex
+        any of them
 }
