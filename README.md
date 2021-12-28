@@ -1,5 +1,7 @@
 ## Features
 
+Note: This requires a VT Enterprise subscription
+
 * Query VirusTotal Livehunt notifications
 * Download matches locally
 * Display which YARA rule matched
