@@ -1,4 +1,4 @@
-rule jquers_WebSkimmer : Magecart WebSkimmer recaptcha
+rule recaptcha_WebSkimmer : Magecart WebSkimmer recaptcha
 {
     meta:
         author = "Jérôme Segura"
