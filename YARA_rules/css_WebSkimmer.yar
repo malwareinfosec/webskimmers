@@ -8,7 +8,7 @@ rule css_WebSkimmer : Magecart WebSkimmer css
         date = "2022-02-23"
         
     strings:
-        $regex = /\}(\t){3}\n(\t){2}\s(\t){2}/
+        $regex = /\}(\t){3}\n(\t){2}\s(\t){2}(\n){2}\t\n\t/
 		$regex2 = /'POST',decodeURIComponent\(escape\(\w{2,8}\)\),!0\);\w{2,8}\.send\(null\);\}/
     
     condition:
